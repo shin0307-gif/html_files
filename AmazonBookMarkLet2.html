@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Amazon商品紹介 ブックマークレット(専用)</title>
+</head>
+<body style="margin:0;background:#fff;color:#222;font:15px/1.7 sans-serif;">
+<div id="amazon-bm-personal" style="max-width:670px;margin:18px auto;padding:20px;border:1px solid #ddd;border-radius:12px;box-sizing:border-box;">
+  <div style="font-size:20px;font-weight:700;margin-bottom:6px;">Amazon商品紹介 ブックマークレット(専用)</div>
+  <div style="font-size:13px;color:#555;margin-bottom:14px;">ストアID: <strong data-role="tagview"></strong>(固定)</div>
+
+  <div style="margin:8px 0 12px;">次のボタンを<strong>ブックマークバーへドラッグ</strong>してください。</div>
+  <a data-role="bookmark" draggable="true" style="display:inline-block;padding:11px 16px;background:#ff9900;color:#171717!important;border-radius:7px;font-weight:bold;text-decoration:none;cursor:grab;">Amazon商品紹介を作成</a>
+
+  <div style="margin:14px 0 8px;">ドラッグできない場合:
+    <button type="button" data-role="copy" style="padding:8px 12px;border:1px solid #bbb;border-radius:6px;background:#f7f7f7;cursor:pointer;">登録用URLをコピー</button>
+  </div>
+  <textarea data-role="fallback" hidden readonly style="box-sizing:border-box;width:100%;height:100px;margin:5px 0;"></textarea>
+  <div data-role="msg" role="status" style="font-size:13px;color:#555;min-height:22px;"></div>
+  <div data-role="runtime" style="padding:8px;color:#a20;background:#fff2ef;font-size:13px;border-radius:6px;">JavaScriptが実行されていません。</div>
+
+  <div style="margin-top:12px;font-size:13px;color:#555;">
+    使い方: Amazon.co.jpの商品ページでブックマークを実行 → 商品名と画像を確認 → 「コピー」を押す → FC2のWYSIWYGエディタで <strong>Ctrl+V</strong>(Macは Cmd+V)で貼り付けます。<br>
+    金額は表示しません。画像の掲載には、権利とAmazonの利用条件を確認してください。
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var TAG = 'shin0307-22';
+
+  var root = document.getElementById('amazon-bm-personal');
+  var link = root.querySelector('[data-role="bookmark"]');
+  var message = root.querySelector('[data-role="msg"]');
+  var copy = root.querySelector('[data-role="copy"]');
+  var fallback = root.querySelector('[data-role="fallback"]');
+  var runtime = root.querySelector('[data-role="runtime"]');
+  root.querySelector('[data-role="tagview"]').textContent = TAG;
+  runtime.hidden = true;
+
+  // この関数がそのままブックマークレットになります。Amazon.co.jp上でのみ動作します。
+  function amazonCardMaker(tag) {
+    try {
+      if (!/(^|\.)amazon\.co\.jp$/i.test(location.hostname)) {
+        alert('Amazon.co.jpの商品ページで実行してください。');
+        return;
+      }
+      var asin = (location.pathname.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?]|$)/i) || [])[1] ||
+        new URL(location.href).searchParams.get('asin');
+      if (!asin || !/^[A-Z0-9]{10}$/i.test(asin)) {
+        alert('商品番号(ASIN)が見つかりません。商品詳細ページで実行してください。');
+        return;
+      }
+      asin = asin.toUpperCase();
+      var href = 'https://www.amazon.co.jp/dp/' + asin + '/ref=nosim?tag=' + encodeURIComponent(tag);
+
+      function imageCandidate() {
+        var selectors = ['#landingImage', '#imgTagWrapperId img', '#main-image-container img', '#imgBlkFront', 'img[data-old-hires]'];
+        for (var i = 0; i < selectors.length; i++) {
+          var img = document.querySelector(selectors[i]);
+          if (!img) continue;
+          var u = img.getAttribute('data-old-hires') || '';
+          if (!u) {
+            var raw = img.getAttribute('data-a-dynamic-image');
+            if (raw) {
+              try {
+                var variants = JSON.parse(raw);
+                u = Object.keys(variants).sort(function (a, b) {
+                  return ((variants[b] || [])[0] || 0) - ((variants[a] || [])[0] || 0);
+                })[0] || '';
+              } catch (e1) {}
+            }
+          }
+          u = u || img.currentSrc || img.src || '';
+          try {
+            var parsed = new URL(u, location.href);
+            if (parsed.protocol === 'https:' && /(?:^|\.)(?:images-amazon\.com|media-amazon\.com|ssl-images-amazon\.com)$/i.test(parsed.hostname)) return parsed.href;
+          } catch (e2) {}
+        }
+        return '';
+      }
+
+      function mk(tagName, css, text) {
+        var e = document.createElement(tagName);
+        if (css) e.style.cssText = css;
+        if (text) e.textContent = text;
+        return e;
+      }
+
+      // FC2のWYSIWYGでも崩れにくいよう、table構成のカードをDOMで組み立てます。
+      function buildCard(name, image) {
+        var table = mk('table', 'border:1px solid #ddd;border-collapse:collapse;margin:16px 0;max-width:100%');
+        var tbody = mk('tbody');
+        var tr = mk('tr');
+        if (image) {
+          var tdImg = mk('td', 'padding:12px;vertical-align:middle;text-align:center;width:140px');
+          var aImg = mk('a');
+          aImg.href = href; aImg.target = '_blank'; aImg.rel = 'sponsored nofollow noopener noreferrer';
+          var img = mk('img', 'width:128px;height:128px;object-fit:contain;max-width:100%');
+          img.src = image; img.alt = name; img.width = 128; img.height = 128;
+          aImg.appendChild(img); tdImg.appendChild(aImg); tr.appendChild(tdImg);
+        }
+        var td = mk('td', 'padding:12px;vertical-align:middle');
+        td.appendChild(mk('div', 'font-weight:bold;margin-bottom:8px', name));
+        td.appendChild(mk('div', 'font-size:13px;color:#555;margin-bottom:10px', '価格はAmazonで確認'));
+        var btn = mk('a', 'display:inline-block;background:#ff9900;color:#111;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:bold', 'Amazonで商品を見る');
+        btn.href = href; btn.target = '_blank'; btn.rel = 'sponsored nofollow noopener noreferrer';
+        td.appendChild(btn);
+        tr.appendChild(td); tbody.appendChild(tr); table.appendChild(tbody);
+        return table;
+      }
+
+      var detectedImage = imageCandidate();
+      var id = 'amazon-card-maker-overlay';
+      var prior = document.getElementById(id);
+      if (prior) prior.remove();
+
+      var overlay = mk('div', 'position:fixed;inset:0;z-index:2147483647;background:#0009;display:flex;align-items:center;justify-content:center;font:14px/1.6 system-ui,sans-serif;color:#222');
+      overlay.id = id;
+      var panel = mk('div', 'background:white;border-radius:12px;padding:22px;max-width:560px;width:calc(100% - 32px);max-height:90vh;overflow:auto;box-shadow:0 12px 40px #0005');
+      panel.appendChild(mk('h2', 'margin:0 0 8px;font-size:20px', 'Amazon商品紹介を作成'));
+      panel.appendChild(mk('p', 'margin:0 0 10px;font-size:12px;color:#555', 'ASIN: ' + asin + ' / ストアID: ' + tag + '(固定)'));
+
+      function createInput(labelText, placeholder) {
+        var label = mk('label');
+        label.textContent = labelText;
+        var input = mk('input', 'display:block;box-sizing:border-box;width:100%;padding:8px;margin:3px 0 10px');
+        if (placeholder) input.placeholder = placeholder;
+        label.appendChild(input);
+        panel.appendChild(label);
+        return input;
+      }
+      var nameField = createInput('商品名');
+      var imageField = createInput('画像URL(1枚目を自動検出)', '画像が取得できませんでした');
+
+      var rightsLabel = mk('label', 'display:block;font-size:12px;margin-bottom:12px');
+      var rights = document.createElement('input');
+      rights.type = 'checkbox';
+      rightsLabel.appendChild(rights);
+      rightsLabel.appendChild(document.createTextNode(' この画像URLを公開ページに使う権利・許可・利用条件を確認済み'));
+      panel.appendChild(rightsLabel);
+
+      var row = mk('div', 'display:flex;gap:8px;margin-bottom:10px');
+      var copyButton = mk('button', 'background:#ff9900;border:0;border-radius:6px;padding:10px 14px;cursor:pointer;font-weight:bold', '貼り付け用にコピー');
+      var closeButton = mk('button', 'padding:10px 14px;cursor:pointer', '閉じる');
+      row.appendChild(copyButton); row.appendChild(closeButton);
+      panel.appendChild(row);
+      var msg = mk('p', 'margin:0 0 10px;font-size:12px');
+      panel.appendChild(msg);
+      panel.appendChild(mk('div', 'font-size:12px;color:#555;margin-bottom:4px', 'プレビュー(コピーされる内容)'));
+      var preview = mk('div', 'border:1px dashed #ccc;border-radius:6px;padding:4px 10px');
+      panel.appendChild(preview);
+
+      overlay.appendChild(panel);
+      document.body.appendChild(overlay);
+
+      nameField.value = ((document.querySelector('#productTitle') || {}).textContent || '').trim() ||
+        document.title.replace(/\s*[:：-]\s*Amazon.*$/i, '').trim();
+      imageField.value = detectedImage;
+      msg.textContent = detectedImage ? '画像URLを自動入力しました。' : '画像URLを自動検出できませんでした(空欄でも作成できます)。';
+
+      function currentCard() {
+        var name = nameField.value.trim();
+        var rawImage = imageField.value.trim();
+        if (!name) { msg.textContent = '商品名を入力してください。'; return null; }
+        var image = '';
+        if (rawImage) {
+          try {
+            var u = new URL(rawImage);
+            if (u.protocol !== 'https:') throw new Error('not https');
+            image = u.href;
+          } catch (e3) { msg.textContent = '画像URLはhttps://で始まるURLにしてください。'; return null; }
+        }
+        if (image && !rights.checked) { msg.textContent = '画像の利用条件を確認してチェックするか、画像URLを空欄にしてください。'; return null; }
+        return { name: name, card: buildCard(name, image) };
+      }
+
+      function refreshPreview() {
+        var c = currentCard();
+        preview.textContent = '';
+        if (c) preview.appendChild(c.card);
+      }
+      nameField.addEventListener('input', refreshPreview);
+      imageField.addEventListener('input', refreshPreview);
+      rights.addEventListener('change', refreshPreview);
+      refreshPreview();
+
+      closeButton.onclick = function () { overlay.remove(); };
+      overlay.addEventListener('click', function (ev) { if (ev.target === overlay) overlay.remove(); });
+
+      copyButton.onclick = async function () {
+        var c = currentCard();
+        if (!c) return;
+        preview.textContent = '';
+        preview.appendChild(c.card);
+        var html = c.card.outerHTML;
+        var text = c.name + '\n' + href;
+        try {
+          await navigator.clipboard.write([new ClipboardItem({
+            'text/html': new Blob([html], { type: 'text/html' }),
+            'text/plain': new Blob([text], { type: 'text/plain' })
+          })]);
+          msg.textContent = 'コピーしました。FC2のWYSIWYGエディタで Ctrl+V(Macは Cmd+V)で貼り付けてください。';
+        } catch (e4) {
+          var ok = false;
+          try {
+            var range = document.createRange();
+            range.selectNode(c.card);
+            var sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+            ok = document.execCommand('copy');
+          } catch (e5) {}
+          msg.textContent = ok
+            ? 'コピーしました(代替方式)。FC2のWYSIWYGエディタに貼り付けてください。'
+            : '自動コピーできませんでした。プレビューのカードが選択されているので、Ctrl+C でコピーしてください。';
+        }
+      };
+    } catch (err) {
+      alert('エラー: ' + (err && err.message ? err.message : String(err)));
+    }
+  }
+
+  var bookmarklet = '(' + amazonCardMaker.toString() + ')(' + JSON.stringify(TAG) + ');';
+  var url = 'javascript:' + encodeURIComponent(bookmarklet);
+  link.setAttribute('href', url);
+  message.textContent = '「Amazon商品紹介を作成」をブックマークバーへドラッグしてください。';
+
+  link.addEventListener('click', function (ev) {
+    ev.preventDefault();
+    message.textContent = 'リンクはクリックせず、ブックマークバーへドラッグしてください。';
+  });
+
+  copy.addEventListener('click', async function () {
+    try {
+      await navigator.clipboard.writeText(url);
+      message.textContent = 'ブックマークのURL欄に貼り付けるコードをコピーしました。';
+    } catch (e6) {
+      fallback.value = url;
+      fallback.hidden = false;
+      fallback.select();
+      message.textContent = '自動コピーできませんでした。下のコードを手動でコピーしてください。';
+    }
+  });
+})();
+</script>
+</body>
+</html>
