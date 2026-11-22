@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>マウス精度テスト</title>
+<style>
+:root{
+  --bg:#f2f4f6; --panel:#ffffff; --ink:#1b2430; --sub:#5b6776; --line:#cfd6de;
+  --grid:#e3e8ed; --acc:#0f766e; --acc-ink:#ffffff; --miss:#c2410c; --ring:#0f766e33;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#12171d; --panel:#1b222b; --ink:#e8edf2; --sub:#9aa7b5; --line:#33404d;
+    --grid:#242d37; --acc:#2dd4bf; --acc-ink:#06201d; --miss:#fb923c; --ring:#2dd4bf33;
+  }
+}
+*{box-sizing:border-box}
+html{color-scheme:light dark}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Hiragino Sans","Yu Gothic UI","Noto Sans JP",system-ui,sans-serif;line-height:1.7}
+.wrap{max-width:760px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:1.5rem;margin:0 0 4px;letter-spacing:.02em}
+.lead{margin:0 0 16px;color:var(--sub);font-size:.95rem}
+.bar{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-variant-numeric:tabular-nums}
+.bar b{font-size:1.1rem}
+.bar span{color:var(--sub);font-size:.85rem;margin-right:4px}
+#arena{position:relative;width:100%;height:min(60vh,420px);min-height:280px;border:1px solid var(--line);border-radius:6px;
+  background-color:var(--panel);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:24px 24px;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;cursor:crosshair}
+#arena.idle{cursor:default}
+.target{position:absolute;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;
+  background:radial-gradient(circle,var(--acc) 0 14%,var(--panel) 15% 38%,var(--acc) 39% 52%,var(--panel) 53% 70%,var(--acc) 71% 100%)}
+.mark{position:absolute;width:10px;height:10px;margin:-5px 0 0 -5px;border:2px solid var(--miss);border-radius:50%;pointer-events:none;
+  animation:pop .35s ease-out forwards}
+@keyframes pop{from{transform:scale(.4);opacity:1}to{transform:scale(1.6);opacity:0}}
+@media (prefers-reduced-motion:reduce){.mark{animation:none;opacity:.6}}
+.overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
+  text-align:center;padding:16px;background:color-mix(in srgb,var(--panel) 88%,transparent)}
+.overlay p{margin:0;color:var(--sub);max-width:36em;font-size:.95rem}
+button{font:inherit;font-weight:600;background:var(--acc);color:var(--acc-ink);border:0;border-radius:6px;padding:10px 22px;cursor:pointer}
+button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.res{display:none;margin-top:20px}
+.res.on{display:block}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.cell{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 14px}
+.cell small{display:block;color:var(--sub);font-size:.8rem}
+.cell strong{font-size:1.5rem;font-variant-numeric:tabular-nums}
+.cell.main{border-color:var(--acc);box-shadow:inset 4px 0 0 var(--acc)}
+.rank{font-size:1.05rem;margin:0 0 14px}
+.scatter{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+canvas{width:220px;height:220px;max-width:100%;background:var(--panel);border:1px solid var(--line);border-radius:6px}
+.scatter p{margin:0;flex:1 1 240px;color:var(--sub);font-size:.9rem}
+.note{margin-top:20px;color:var(--sub);font-size:.82rem}
+</style>
+</head>
+<body>
+<main class="wrap" id="mat">
+  <h1>マウス精度テスト</h1>
+  <p class="lead">現れる的を、できるだけ中心でクリックしてください。全20発。的は途中から小さくなります。</p>
+
+  <div class="bar" aria-live="polite">
+    <div><span>残り</span><b id="left">20</b></div>
+    <div><span>命中</span><b id="hits">0</b></div>
+    <div><span>ミス</span><b id="miss">0</b></div>
+  </div>
+
+  <div id="arena" class="idle">
+    <div class="overlay" id="ov">
+      <p>マウスやトラックパッド、タッチなど、普段使っている入力デバイスでそのまま測れます。</p>
+      <button id="start" type="button">テストを始める</button>
+    </div>
+  </div>
+
+  <section class="res" id="res" aria-live="polite">
+    <p class="rank" id="rank"></p>
+    <div class="grid">
+      <div class="cell main"><small>命中率</small><strong id="rAcc">-</strong></div>
+      <div class="cell"><small>中心からのズレ(平均)</small><strong id="rOff">-</strong></div>
+      <div class="cell"><small>平均タイム</small><strong id="rTime">-</strong></div>
+      <div class="cell"><small>スコア</small><strong id="rScore">-</strong></div>
+    </div>
+    <div class="scatter">
+      <canvas id="cv" width="440" height="440" role="img" aria-label="クリック位置の分布"></canvas>
+      <p id="bias"></p>
+    </div>
+    <p style="margin-top:16px"><button id="again" type="button">もう一度測る</button></p>
+  </section>
+
+  <p class="note">ズレは的の半径を1としたときの中心からの距離の平均です。0に近いほど正確です。ブラウザやOSのポインタ設定(加速度など)も結果に影響します。</p>
+</main>
+
+<script>
+(function(){
+  var TOTAL = 20;
+  var arena = document.getElementById('arena');
+  var ov = document.getElementById('ov');
+  var $ = function(id){return document.getElementById(id)};
+  var state = null;
+
+  function rnd(a,b){return a + Math.random()*(b-a)}
+
+  function begin(){
+    state = {n:0, hits:0, miss:0, rec:[], t0:0, el:null, r:0, x:0, y:0};
+    ov.style.display = 'none';
+    arena.classList.remove('idle');
+    $('res').classList.remove('on');
+    update();
+    setTimeout(next, 500);
+  }
+
+  function update(){
+    $('left').textContent = TOTAL - state.n;
+    $('hits').textContent = state.hits;
+    $('miss').textContent = state.miss;
+  }
+
+  function next(){
+    if(state.n >= TOTAL){ finish(); return; }
+    var W = arena.clientWidth, H = arena.clientHeight;
+    var r = state.n < 10 ? rnd(22,34) : rnd(11,20);
+    var m = r + 6;
+    state.r = r; state.x = rnd(m, W-m); state.y = rnd(m, H-m);
+    var el = document.createElement('div');
+    el.className = 'target';
+    el.style.cssText = 'left:'+state.x+'px;top:'+state.y+'px;width:'+(r*2)+'px;height:'+(r*2)+'px';
+    arena.appendChild(el);
+    state.el = el;
+    state.t0 = performance.now();
+  }
+
+  arena.addEventListener('pointerdown', function(e){
+    if(!state || !state.el) return;
+    e.preventDefault();
+    var b = arena.getBoundingClientRect();
+    var px = e.clientX - b.left, py = e.clientY - b.top;
+    var dx = px - state.x, dy = py - state.y;
+    var d = Math.sqrt(dx*dx + dy*dy);
+    var t = performance.now() - state.t0;
+    var hit = d <= state.r;
+    state.rec.push({hit:hit, d:d, r:state.r, nx:dx/state.r, ny:dy/state.r, t:t});
+    if(hit){
+      state.hits++;
+      state.el.remove(); state.el = null;
+      state.n++;
+      update();
+      setTimeout(next, 250);
+    }else{
+      state.miss++;
+      var m = document.createElement('div');
+      m.className = 'mark';
+      m.style.left = px+'px'; m.style.top = py+'px';
+      arena.appendChild(m);
+      setTimeout(function(){m.remove()}, 400);
+      update();
+    }
+  });
+
+  function finish(){
+    state.el = null;
+    arena.classList.add('idle');
+    ov.style.display = 'flex';
+    ov.querySelector('p').textContent = 'テスト終了。結果は下に表示されています。';
+    $('start').textContent = 'もう一度';
+
+    var shots = state.rec.length;
+    var acc = state.hits / shots * 100;
+    var hitsRec = state.rec.filter(function(r){return r.hit});
+    var off = hitsRec.reduce(function(s,r){return s + r.d/r.r},0) / hitsRec.length;
+    var time = hitsRec.reduce(function(s,r){return s + r.t},0) / hitsRec.length;
+    var score = Math.max(0, Math.round(acc*6 + (1-off)*250 + Math.max(0,(1500-time))/10));
+
+    $('rAcc').textContent = acc.toFixed(1) + '%';
+    $('rOff').textContent = off.toFixed(2);
+    $('rTime').textContent = Math.round(time) + ' ms';
+    $('rScore').textContent = score;
+    $('rank').textContent = (score >= 900 ? 'かなり安定しています。' :
+                             score >= 700 ? 'しっかり狙えています。' :
+                             score >= 500 ? '標準的な精度です。' : '伸びしろがあります。') +
+      ' 総クリック ' + shots + ' 回、ミス ' + state.miss + ' 回。';
+    draw(hitsRec);
+    $('res').classList.add('on');
+    $('res').scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+
+  function draw(list){
+    var cv = $('cv'), c = cv.getContext('2d');
+    var s = getComputedStyle(document.documentElement);
+    var acc = s.getPropertyValue('--acc').trim() || '#0f766e';
+    var line = s.getPropertyValue('--line').trim() || '#ccc';
+    var W = cv.width, cx = W/2, R = W/2 - 16;
+    c.clearRect(0,0,W,W);
+    c.strokeStyle = line; c.lineWidth = 2;
+    c.beginPath(); c.arc(cx,cx,R,0,Math.PI*2); c.stroke();
+    c.beginPath(); c.arc(cx,cx,R/2,0,Math.PI*2); c.stroke();
+    c.beginPath(); c.moveTo(cx-R,cx); c.lineTo(cx+R,cx); c.moveTo(cx,cx-R); c.lineTo(cx,cx+R); c.stroke();
+    var sx = 0, sy = 0;
+    c.fillStyle = acc;
+    list.forEach(function(r){
+      sx += r.nx; sy += r.ny;
+      c.beginPath(); c.arc(cx + r.nx*R, cx + r.ny*R, 6, 0, Math.PI*2); c.fill();
+    });
+    var mx = sx/list.length, my = sy/list.length;
+    c.strokeStyle = acc; c.lineWidth = 3;
+    c.beginPath(); c.moveTo(cx+mx*R-10, cy(my)); c.lineTo(cx+mx*R+10, cy(my));
+    c.moveTo(cx+mx*R, cy(my)-10); c.lineTo(cx+mx*R, cy(my)+10); c.stroke();
+    function cy(v){return cx + v*R}
+    var dir = [];
+    if(Math.abs(mx) > .12) dir.push(mx > 0 ? '右' : '左');
+    if(Math.abs(my) > .12) dir.push(my > 0 ? '下' : '上');
+    $('bias').textContent = '外側の円が的の縁、点が命中したクリック位置、十字が平均位置です。' +
+      (dir.length ? '平均すると的の中心より' + dir.join('・') + 'にずれる傾向があります。' : '特定の方向への偏りは小さめです。');
+  }
+
+  $('start').addEventListener('click', begin);
+  $('again').addEventListener('click', function(){ window.scrollTo({top:0,behavior:'smooth'}); begin(); });
+})();
+</script>
+</body>
+</html>
