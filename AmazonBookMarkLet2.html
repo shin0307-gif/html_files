@@ -103,8 +103,8 @@
           aImg.appendChild(img); tdImg.appendChild(aImg); tr.appendChild(tdImg);
         }
         var td = mk('td', 'padding:12px;vertical-align:middle');
-        td.appendChild(mk('div', 'font-weight:bold;margin-bottom:8px', name));
-        td.appendChild(mk('div', 'font-size:13px;color:#555;margin-bottom:10px', '価格はAmazonで確認'));
+        td.appendChild(mk('div', 'font-weight:bold;margin-bottom:8px;color:#fff', name));
+        td.appendChild(mk('div', 'font-size:13px;color:#ddd;margin-bottom:10px', '価格はAmazonで確認'));
         var btn = mk('a', 'display:inline-block;background:#ff9900;color:#111;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:bold', 'Amazonで商品を見る');
         btn.href = href; btn.target = '_blank'; btn.rel = 'sponsored nofollow noopener noreferrer';
         td.appendChild(btn);
@@ -150,7 +150,7 @@
       var msg = mk('p', 'margin:0 0 10px;font-size:12px');
       panel.appendChild(msg);
       panel.appendChild(mk('div', 'font-size:12px;color:#555;margin-bottom:4px', 'プレビュー(コピーされる内容)'));
-      var preview = mk('div', 'border:1px dashed #ccc;border-radius:6px;padding:4px 10px');
+      var preview = mk('div', 'border:1px dashed #666;border-radius:6px;padding:4px 10px;background:#1e1e1e');
       panel.appendChild(preview);
 
       overlay.appendChild(panel);
